@@ -39,9 +39,9 @@ class QdrantRepo:
         embedding_model: str = "text-embedding-3-small",
     ) -> None:
         self._collection = collection
-        self._openai = OpenAI(api_key=openai_api_key)
+        self._openai = OpenAI(api_key=openai_api_key, timeout=30, max_retries=2)
         self._embedding_model = embedding_model
-        self._client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
+        self._client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key, timeout=30)
         self._datetime_range_cls = getattr(qmodels, "DatetimeRange", None)
         self._vector_name = os.getenv("QDRANT_VECTOR_NAME")
 

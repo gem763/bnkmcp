@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Policy Search</title>
+    <style>
+      body { margin:0; padding:16px; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      main { max-width: 820px; margin: 0 auto; }
+      h2 { margin: 0 0 12px; }
+      form { display:flex; gap:8px; margin-bottom: 12px; }
+      input { flex:1; padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1; }
+      button { padding:10px 14px; border-radius:10px; border:0; cursor:pointer; font-weight:700; }
+      .item { border:1px solid #e2e8f0; border-radius:12px; padding:12px; margin:10px 0; }
+      .meta { color:#64748b; font-size:12px; margin-top:6px; }
+      pre { white-space: pre-wrap; word-break: break-word; margin:8px 0 0; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h2>검색결과</h2>
+      <!-- <form id="qform" autocomplete="off">
+        <input id="q" placeholder="예) 장례지원, 휴가, 출장비…" />
+        <button type="submit">검색</button>
+      </form> -->
+      <div id="results"></div>
+    </main>
+
+    <script type="module">
+      const resultsEl = document.querySelector("#results");
+      const formEl = document.querySelector("#qform");
+      const inputEl = document.querySelector("#q");
+
+      let items = [];
+
+      const normalizeItems = (toolResp) => {
+        // 서버가 structuredContent로 주면 그걸 우선 사용
+        const sc = toolResp?.structuredContent ?? toolResp;
+        return sc?.items ?? sc?.results ?? [];
+      };
+
+      const render = () => {
+        resultsEl.innerHTML = "";
+        if (!items.length) {
+          resultsEl.innerHTML = "<div class='meta'>결과가 없습니다.</div>";
+          return;
+        }
+        items.forEach((it) => {
+          const div = document.createElement("div");
+          div.className = "item";
+          div.innerHTML = `
+            <div><b>${it.title_path ?? "(제목 없음)"}</b> ${it.page ? `(p.${it.page})` : ""}</div>
+            <pre>${it.text ?? ""}</pre>
+            <div class="meta">${it.source ?? ""} ${it.revised ? `· revised: ${it.revised}` : ""} ${it.score != null ? `· score: ${it.score}` : ""}</div>
+          `;
+          resultsEl.appendChild(div);
+        });
+      };
+
+      // ChatGPT가 tool output을 새로 주입할 때 이벤트로 알려줍니다
+      const handleSetGlobals = (event) => {
+        const globals = event.detail?.globals;
+        const toolOutput = globals?.toolOutput;
+        if (!toolOutput) return;
+        items = normalizeItems(toolOutput);
+        render();
+      };
+      window.addEventListener("openai:set_globals", handleSetGlobals, { passive: true });
+
+      formEl.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const query = inputEl.value.trim();
+        if (!query) return;
+
+        // widgetAccessible=true 면 위젯에서 tool 호출 가능
+        if (window.openai?.callTool) {
+          const resp = await window.openai.callTool("search_policy_chunks", { query, limit: 5 });
+          items = normalizeItems(resp);
+          render();
+          return;
+        }
+
+        // callTool이 없으면(로컬 브라우저 단독 실행 등) 안내만
+        resultsEl.innerHTML = "<div class='meta'>ChatGPT 위젯 환경에서만 tool 호출이 가능합니다.</div>";
+      });
+
+      // 최초 렌더(이미 toolOutput이 주입된 상태일 수 있음)
+      items = normalizeItems(window.openai?.toolOutput);
+      render();
+    </script>
+  </body>
+</html>

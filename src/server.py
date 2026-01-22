@@ -1,35 +1,79 @@
 from __future__ import annotations
 
 import inspect
+import time
 import os
 
-from mcp.server.fastmcp import FastMCP
+import json
+from typing import Annotated
 
+import asyncio, time, json
+from typing import Annotated
+from mcp.types import CallToolResult, TextContent
+from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
+
+from pathlib import Path
 from .qdrant_repo import QdrantRepo
 from .schemas import GetPolicyChunkResult, SearchPolicyChunksResult
 from dotenv import load_dotenv
 load_dotenv()
 
-mcp = FastMCP("policy-mcp")
+# mcp = FastMCP("policy-mcp")
+mcp = FastMCP(
+    "policy-mcp",
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=False
+    ),
+)
 repo = QdrantRepo.from_env()
 
 
-@mcp.tool()
-def search_policy_chunks(
+WIDGET_URI = "ui://widget/policy-widget.v2.html"
+WIDGET_FILE = Path(__file__).resolve().parent.parent / "web" / "public" / "policy-widget.v2.html"
+
+@mcp.resource(WIDGET_URI, mime_type="text/html+skybridge")
+def policy_widget() -> str:
+    return WIDGET_FILE.read_text(encoding="utf-8")
+
+
+TOOL_META = {
+    "openai/outputTemplate": WIDGET_URI,
+    "openai/widgetAccessible": True,  # 위젯에서 callTool 쓰려면 True
+    "openai/toolInvocation/invoking": "사규를 검색 중…",
+    "openai/toolInvocation/invoked": "사규 검색 결과",
+}
+
+
+@mcp.tool(meta=TOOL_META, annotations={"readOnlyHint": True})
+async def search_policy_chunks(
     query: str,
     doctype: str | None = None,
     department: str | None = None,
     revised_after: str | None = None,
     limit: int = 5,
-) -> SearchPolicyChunksResult:
-    items = repo.search(
+) -> Annotated[CallToolResult, SearchPolicyChunksResult]:
+    t0 = time.time()
+    print("[tool] search_policy_chunks start", query, flush=True)
+
+    # ✅ 동기 I/O를 이벤트루프 밖으로
+    items = await asyncio.to_thread(
+        repo.search,
         query=query,
         limit=limit,
         doctype=doctype,
         department=department,
         revised_after=revised_after,
     )
-    return SearchPolicyChunksResult(items=items)
+
+    print("[tool] search_policy_chunks end", len(items), "elapsed", round(time.time()-t0, 2), "s", flush=True)
+
+    structured = SearchPolicyChunksResult(items=items).model_dump()
+
+    return CallToolResult(
+        content=[TextContent(type="text", text=f"검색 결과 {len(items)}건입니다. 위젯에서 확인하세요.")],
+        structuredContent=structured,
+    )
 
 
 @mcp.tool()
