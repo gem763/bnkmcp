@@ -1,11 +1,12 @@
-# src/http_app.py
-from starlette.applications import Starlette
-from starlette.routing import Mount
+from fastapi import FastAPI
+from src.server import mcp
 
-from src.server import mcp  # mcp 객체/툴 등록만 있는 모듈이어야 함(아래 참고)
+app = FastAPI()
 
-app = Starlette(
-    routes=[
-        Mount("/mcp", app=mcp.streamable_http_app()),
-    ]
-)
+# ✅ MCP는 루트에 mount (중요)
+# 그러면 MCP 엔드포인트는 내부적으로 그대로 /mcp 로 동작합니다.
+app.mount("/", mcp.streamable_http_app())
+
+@app.get("/health")
+def health():
+    return {"ok": True}
