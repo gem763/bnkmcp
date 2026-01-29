@@ -7,29 +7,25 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
 
 from .schemas import PolicyChunk
-from dotenv import load_dotenv
-from openai import OpenAI
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional dependency
+    load_dotenv = None
 
-# try:
-#     from dotenv import load_dotenv
-# except ImportError:  # pragma: no cover - optional dependency
-#     load_dotenv = None
-
-# try:
-#     from openai import OpenAI
-# except ImportError as exc:  # pragma: no cover - optional dependency
-#     raise ImportError("openai package is required for embeddings") from exc
+try:
+    from openai import OpenAI
+except ImportError as exc:  # pragma: no cover - optional dependency
+    raise ImportError("openai package is required for embeddings") from exc
 
 
-# def _load_env() -> None:
-#     if load_dotenv is not None:
-#         load_dotenv()
+def _load_env() -> None:
+    if load_dotenv is not None:
+        load_dotenv()
 
 
-# def _get_env(name: str, alt: Optional[str] = None, default: Optional[str] = None) -> Optional[str]:
-#     return os.getenv(name) or (os.getenv(alt) if alt else None) or default
+def _get_env(name: str, alt: Optional[str] = None, default: Optional[str] = None) -> Optional[str]:
+    return os.getenv(name) or (os.getenv(alt) if alt else None) or default
 
 
 class QdrantRepo:
@@ -41,7 +37,7 @@ class QdrantRepo:
         collection: str,
         openai_api_key: str,
         embedding_model: str = "text-embedding-3-small",
-    ):
+    ) -> None:
         self._collection = collection
         self._openai = OpenAI(api_key=openai_api_key, timeout=30, max_retries=2)
         self._embedding_model = embedding_model
@@ -51,31 +47,25 @@ class QdrantRepo:
 
     @classmethod
     def from_env(cls) -> "QdrantRepo":
-        # _load_env()
-        # qdrant_url = _get_env("QDRANT_URL")
-        # qdrant_api_key = _get_env("QDRANT_APIKEY", "QDRANT_API_KEY")
-        # collection = _get_env("QDRANT_COLLECTION")
-        # openai_api_key = _get_env("OPENAI_APIKEY", "OPENAI_API_KEY")
-        # embedding_model = _get_env("OPENAI_EMBEDDING_MODEL", default="text-embedding-3-small")
+        _load_env()
+        qdrant_url = _get_env("QDRANT_URL")
+        qdrant_api_key = _get_env("QDRANT_APIKEY", "QDRANT_API_KEY")
+        collection = _get_env("QDRANT_COLLECTION")
+        openai_api_key = _get_env("OPENAI_APIKEY", "OPENAI_API_KEY")
+        embedding_model = _get_env("OPENAI_EMBEDDING_MODEL", default="text-embedding-3-small")
 
-        qdrant_url = os.environ.get("QDRANT_URL")
-        qdrant_api_key = os.environ.get("QDRANT_APIKEY")
-        collection = os.environ.get("QDRANT_COLLECTION")
-        openai_api_key = os.environ.get("OPENAI_APIKEY")
-        embedding_model = "text-embedding-3-small"
-
-        # missing = [
-        #     name
-        #     for name, value in (
-        #         ("QDRANT_URL", qdrant_url),
-        #         ("QDRANT_APIKEY", qdrant_api_key),
-        #         ("QDRANT_COLLECTION", collection),
-        #         ("OPENAI_APIKEY", openai_api_key),
-        #     )
-        #     if not value
-        # ]
-        # if missing:
-        #     raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+        missing = [
+            name
+            for name, value in (
+                ("QDRANT_URL", qdrant_url),
+                ("QDRANT_APIKEY", qdrant_api_key),
+                ("QDRANT_COLLECTION", collection),
+                ("OPENAI_APIKEY", openai_api_key),
+            )
+            if not value
+        ]
+        if missing:
+            raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
 
         return cls(
             qdrant_url=qdrant_url,
