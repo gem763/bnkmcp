@@ -1,11 +1,21 @@
 # src/http_app.py
-from starlette.applications import Starlette
-from starlette.routing import Mount
+import contextlib
+from fastapi import FastAPI
+from src.server import mcp
 
-from src.server import mcp  # mcp 객체/툴 등록만 있는 모듈이어야 함(아래 참고)
+mcp_app = mcp.streamable_http_app()
 
-app = Starlette(
-    routes=[
-        Mount("/mcp", app=mcp.streamable_http_app()),
-    ]
-)
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with mcp.session_manager.run():
+        yield
+
+app = FastAPI(lifespan=lifespan)
+
+# ✅ 1) health를 먼저 등록
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+# ✅ 2) 맨 마지막에 "/"로 mount
+app.mount("/", mcp_app)
